@@ -12,10 +12,8 @@ builds:
       - "GOFLAGS=-mod=readonly -trimpath"
     goos:
       - linux
-      - darwin
     goarch:
       - amd64
-      - arm64
     ldflags:
       # The "-X" go flag sets the Version
       - -X github.com/openshift/backplane-cli/pkg/info.Version={{.Version}}
