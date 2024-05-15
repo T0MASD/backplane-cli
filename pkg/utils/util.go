@@ -22,6 +22,7 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/tools/clientcmd/api"
 
+	"github.com/Masterminds/semver"
 	"github.com/openshift/backplane-cli/internal/github"
 	"github.com/openshift/backplane-cli/pkg/info"
 )
@@ -240,11 +241,12 @@ func CheckBackplaneVersion(cmd *cobra.Command) {
 		logger.WithField("Fetch error", err).Warn("Could not fetch latest version from GitHub")
 		return
 	}
-	// GitHub API keeps the v prefix in front which causes mismatch with info.Version
-	latestVersion := strings.TrimLeft(latestVersionTag.TagName, "v")
+	// Assign semantic versions
+	latestVersion, _ := semver.NewVersion(latestVersionTag.TagName)
+	currVersion, _ := semver.NewVersion(info.Version)
 
 	// Check if the local version is already up-to-date
-	if latestVersion == info.Version {
+	if currVersion.Compare(latestVersion) == -1 {
 		logger.WithField("Current version", info.Version).Info("Already up-to-date")
 		return
 	}
