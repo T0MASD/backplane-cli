@@ -3,6 +3,7 @@ package config
 import (
 	"context"
 	"fmt"
+        "net"
 	"net/http"
 	"net/url"
 	"os"
@@ -401,26 +402,67 @@ func (config *BackplaneConfiguration) DisplayKubePS1Warning() bool {
 
 // testHTTPRequestToBackplaneAPI returns status of the API connection
 func (config *BackplaneConfiguration) testHTTPRequestToBackplaneAPI() (bool, error) {
-	client := http.Client{
-		Timeout: 5 * time.Second,
-	}
 
-	if config.ProxyURL != nil {
-		proxyURL, err := url.Parse(*config.ProxyURL)
-		if err != nil {
-			return false, err
-		}
-		http.DefaultTransport = &http.Transport{Proxy: http.ProxyURL(proxyURL)}
-	}
+    fmt.Printf("Starting HTTP request test to URL: %s\n", config.URL)
 
-	req, err := http.NewRequest("HEAD", config.URL, nil)
-	if err != nil {
-		return false, err
-	}
-	_, err = client.Do(req)
-	if err != nil {
-		return false, err
-	}
+    // Create a new Transport
+    tr := &http.Transport{
+        // Set the timeout on the transport, not the client, for more granular control.
+        ResponseHeaderTimeout: 5 * time.Second,
+    }
 
-	return true, nil
+    if config.ProxyURL != nil {
+        fmt.Printf("Proxy URL is set: %s\n", *config.ProxyURL)
+        proxyURL, err := url.Parse(*config.ProxyURL)
+        if err != nil {
+            fmt.Printf("Error parsing proxy URL: %v\n", err)
+            return false, err
+        }
+	if !strings.HasPrefix(proxyURLString, "http") {
+            errMsg := fmt.Errorf("Proxy URL must start with 'http'")
+            fmt.Println(errMsg)
+            return false, errMsg
+	}
+        fmt.Printf("Parsed proxy URL: %+v\n", proxyURL)
+        hostname := proxyURL.Hostname()
+        fmt.Printf("Parsed proxy hostname: %+v\n", hostname)
+ 
+        ips, err := net.LookupHost(hostname)
+        if err != nil {
+            fmt.Printf("DNS lookup failed for proxy URL: %v\n", err)
+            return false, err
+        }
+        fmt.Printf("Proxy hostname '%s' resolved to IPs: %v\n", hostname, ips)
+        
+
+        // Set the Proxy on the specific Transport
+        tr.Proxy = http.ProxyURL(proxyURL)
+    } else {
+        fmt.Println("No proxy URL configured.")
+    }
+
+
+    // Assign the custom Transport to the client
+    client := http.Client{
+        Transport: tr,
+    }
+
+    req, err := http.NewRequest("HEAD", config.URL, nil)
+    if err != nil {
+        fmt.Printf("Error creating new request: %v\n", err)
+        return false, err
+    }
+    fmt.Printf("Created request: %+v\n", req)
+
+    resp, err := client.Do(req)
+    if err != nil {
+        fmt.Printf("Error executing request: %v\n", err)
+        return false, err
+    }
+    defer resp.Body.Close()
+
+    fmt.Printf("Request successful. Response status: %s\n", resp.Status)
+    fmt.Printf("Full response headers: %+v\n", resp.Header)
+
+    return true, nil
 }
